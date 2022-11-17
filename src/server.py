@@ -4,6 +4,7 @@ import socket
 import threading
 
 FILENAME = "movie.Mjpeg"
+BOOTSTRAP = "bootstrap.json"
 
 class Server(Node):
     def __init__(self, host, port):

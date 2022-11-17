@@ -52,5 +52,82 @@ class Node:
                 # Send back what you received
                     self.neighbours.add(aux_msg[1])
                     clientSocket.send(data)
+from node import Node
 
+import socket
+import threading
+
+BOOTSTRAP = "bootstrap.json"
+
+class Bootstrap(Node):
+    def __init__(self, host, port):
+        super().__init__(host, port)
+        
+
+   """  def main(self):
+        threading.Thread(target=startServer, args=()).start() """
+
+    def sendNeighbours(self, ip):
+
+        try:
+            data = json.load(open('bootstrap.json', 'r'))
+        except:
+            raise IOError
+        
+        for i in data:
+            if ip in i['node']:
+                msg = ' '.join(i['vizinhos'])
+                self.socket.sendto(msg.encode('utf-8'), (ip, 3000))
+
+
+if __name__ == '__main__':
+    server = Server()
+    server.main()from node import Node
+
+import socket
+import threading
+
+BOOTSTRAP = "bootstrap.json"
+
+class Bootstrap(Node):
+    def __init__(self, host, port):
+        super().__init__(host, port)
+        
+
+   """  def main(self):
+        threading.Thread(target=startServer, args=()).start() """
+
+    def sendNeighbours(self, ip):
+
+        try:
+            data = json.load(open('bootstrap.json', 'r'))
+        except:
+            raise IOError
+        
+        for i in data:
+            if ip in i['node']:
+                msg = ' '.join(i['vizinhos'])
+                self.socket.sendto(msg.encode('utf-8'), (ip, 3000))
+
+
+if __name__ == '__main__':
+    server = Server()
+    server.main()
                     break
+
+
+    def startNode():
+        threading.Thread(target=self.,args=(s,clientSocket,data,address)).start()
+        threading.Thread(target=self.,args=(s,clientSocket,data,address)).start()
+
+    def main(ip,port):
+        
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.bind((ip, port))
+        s.listen()
+
+        while True:
+            clientSocket, address = s.accept()
+            data = clientSocket.recv(1024)
+            threading.Thread(target=self.processMessage,args=(s,clientSocket,data,address)).start()
+           
