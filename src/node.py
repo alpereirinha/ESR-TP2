@@ -7,7 +7,11 @@ class Node:
 
         self.host = host
         self.port = int(port)
-        self.neighbours = set()
+        self.neighbours = set() #secalhar já não precisamos disto?
+        self.routing_table = {}
+        #possível sintaxe do dicionário i guess:
+        #dict([(('ip_destino','10.1.0.10'), ('next_hop','10.2.0.1'), ('num_hops','3'), ('active','yes')), (....)])
+        self.previous_node = "" #para guardarmos o nodo de onde veio o flood e não enviarmos para ele (?)
 
     def askBootstrap(self):
 

@@ -8,8 +8,10 @@ FILENAME = "movie.Mjpeg"
 BOOTSTRAP = "bootstrap.json"
 
 class Server:
-
-#   def __init__(self):
+    
+    def __init__(self):
+        self.bootstrapper = {} #para guardar os nodos e os vizinhos existentes
+        #sintaxe : {'10.0.0.10': ['10.0.1.1','10.0.1.2'])}
 
     def startServer(self):
 
@@ -27,13 +29,11 @@ class Server:
 
     def processMessage(self, clientSocket, data, address):
 
-        file = json.load(open('bootstrap.json', 'r'))
+        for node in self.bootstrapper:
 
-        for x in file:
+            if address[0] in self.bootstrapper:
 
-            if address[0] in x['node']:
-
-                msg = ' '.join(x['vizinhos'])
+                msg = ' '.join(self.bootstrapper[node])
                 clientSocket.send(msg.encode('utf-8'))
         
         clientSocket.close()
@@ -41,6 +41,39 @@ class Server:
 
         #obter caminho para o cliente que enviou a mensagem
         #para enviar mensagem de volta
+
+    def parseBootstrapper(self):
+        bootstrap = json.load(open("bootstrap.json", 'r'))
+
+        for elem in bootstrap:
+            node = elem['node']
+            neighbors = {}
+            for neighbor in elem['vizinhos']:
+                neighbors.append(neighbor)
+            
+            self.bootstrapper[node] = neighbors
+
+    def bfs(self, visited, queue, node):
+        visited.append(node)
+        queue.append(node)
+        hops = 0
+
+        while queue:
+            s = queue.pop(0)
+
+            for neighbour in self.bootstrapper[s]:
+                if neighbour not in visited:
+                    visited.append(neighbour)
+                    queue.append(neighbour)
+                    #criar entrada na routing table
+                    #definir num_hops = hops 
+                    #definir o previous node = s
+            hops = hops + 1
+
+    def flood(self):
+        visited = []
+        queue = []
+        #bfs(visited, queue, #nodo onde começa) começa nele próprio?
 
     def main(self):
 
