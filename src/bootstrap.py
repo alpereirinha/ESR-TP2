@@ -1,48 +1,29 @@
 import socket, threading, sys, os, time, json
 from pprint import pprint
+from node import Node
 
-class Bootstrap:
+class Bootstrap(Node):
 
-    def __init__(self, host, port):
+    def __init__(self, host):
+        super.__init__(host)
 
-        self.bootstrap = json.load(open("bootstrap.json", 'r'))
-        self.host = host
-        self.port = int(port)
+        self.nodes = {} #para guardar os nodos e os vizinhos existentes
+        #sintaxe : {'10.0.0.10': ['10.0.1.1','10.0.1.2'])}
 
-    def getNeighbours(self, clientAddress, clientSocket):
+    def parseBootstrapper(self):
+        file = json.load(open("bootstrap.json", 'r'))
 
-        for elem in self.bootstrap:
+        for elem in file:
+            node = elem['node']
+            neighbors = {}
+            for neighbor in elem['vizinhos']:
+                neighbors.append(neighbor)
+            
+            self.nodes[node] = neighbors
 
-            if clientAddress[0] in elem['node']:
-
-                clientSocket.send(' '.join(elem['vizinhos']).encode('utf-8'))
-
-    def servico(self):
-
-        try:
-
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.bind((self.host, self.port))
-            s.listen()
-            print(f"tou a ouvir no host {self.host} e no port {self.port}")
-
-        except socket.error as m:
-
-            print(f"não consegui criar, tá tudo lixado: {m}")
-
-        while True:
-
-            clientSocket, clientAddress = s.accept()
-            print(f"aceitei o gajo com ip {clientAddress}")
-            data = clientSocket.recv(1024)
-
-            # ADDME
-
-            if data.decode('utf-8').split(' ')[0] == "JOIN":
-
-                self.getNeighbours(clientAddress, clientSocket)
-
-        s.close()
+    def sendNeighbours(self, addr):
+        neighbours = ' '.join(self.nodes[addr])
+        self.socket.send(neighbours.encode('utf-8'))
 
     def main(self):
 

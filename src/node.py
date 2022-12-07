@@ -1,42 +1,43 @@
 import socket, threading, sys, os, time
 from pprint import pprint
 
+PORT = 3000
+
 class Node:
 
-    def __init__(self, host, port):
+    def __init__(self, host, bootstrapper):
 
         self.host = host
-        self.port = int(port)
-        self.neighbours = set() #secalhar já não precisamos disto?
+        self.bootstrapper = bootstrapper
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.routing_table = {}
         #possível sintaxe do dicionário i guess:
-        #dict([(('ip_destino','10.1.0.10'), ('next_hop','10.2.0.1'), ('num_hops','3'), ('active','yes')), (....)])
+        #dict([(('10.1.0.10' : [('next_hop','10.2.0.1'), ('num_hops','3'), ('active','yes'))])
         self.previous_node = "" #para guardarmos o nodo de onde veio o flood e não enviarmos para ele (?)
 
     def askBootstrap(self):
 
         try:
 
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # s.bind((self.host, self.port))
-            s.connect(('10.0.0.10', 3000)) # ip server e port
+            self.socket.send("NEIGHBOURS".encode('utf-8'))
+            data, (address, port) = self.socket.recv(1024)
 
-            print("espero conectar com 10.0.0.10 no port 3000")
+            print(f"Recebi {data.decode('utf-8')}")
 
-            s.send("JOIN ".encode('utf-8'))
-            res = s.recv(1024)
-
-            print(f"recebi {res.decode('utf-8')}")
-
-            self.neighbours = self.neighbours.union(set(res.decode('utf-8').split(" ")))
-
-            print(f"info que tenho dos vizinhos: {self.neighbours}")
-
-            s.close()
+            for node in data.decode('utf-8').split(" "):
+                self.routing_table[node] = (node, float('inf'), "no")
 
         except socket.error as m:
 
             print(f"não consegui criar, tá tudo lixado: {m}")
+
+    def listen(self):
+        while True:
+            data, (address, port) = self.socket.recv(1024) #probably vai ter que ser alterado
+
+            #definir formato da data
+            #if == NEIGHBOURS self.sendNeighbours(address)
+            #defineRoutes(data,address)
 
     def servico(self):
 
@@ -44,6 +45,21 @@ class Node:
 
             time.sleep(3)
             print(self.neighbours)
+
+    def defineRoutes(self, data, address):
+
+        #falta receber
+
+        str_to_send = ""
+        list_to_send = []
+        for neighbour in self.routing_table:
+            #deve haver uma maneira melhor de fazer esta string
+            neighbour_str = "key:" + neighbour + ",values:" + ' '.join(self.routing_table[neighbour])
+            #enviar também o instante? para comparar os delays
+            list_to_send.append(neighbour_str)
+        
+        str_to_send = ';'.join(list_to_send)
+        self.socket.send(str_to_send.encode("utf-8"))
 
     def main(self):
 

@@ -7,11 +7,10 @@ import threading
 FILENAME = "movie.Mjpeg"
 BOOTSTRAP = "bootstrap.json"
 
-class Server:
+class Server(Node):
     
     def __init__(self):
-        self.bootstrapper = {} #para guardar os nodos e os vizinhos existentes
-        #sintaxe : {'10.0.0.10': ['10.0.1.1','10.0.1.2'])}
+        super.__init__()
 
     def startServer(self):
 
@@ -26,6 +25,22 @@ class Server:
             print(f"Recebi {data.decode('utf-8')}")
 
             threading.Thread(target=self.processMessage,args=(clientSocket,data,address)).start()
+    
+    def askBootstrap(self):
+
+        try:
+
+            self.socket.send("NEIGHBOURS".encode('utf-8'))
+            data, (address, port) = self.socket.recv(1024)
+
+            print(f"Recebi {data.decode('utf-8')}")
+
+            for node in data.decode('utf-8').split(" "):
+                self.routing_table[node] = (node, 1, "no")
+
+        except socket.error as m:
+
+            print(f"não consegui criar, tá tudo lixado: {m}")
 
     def processMessage(self, clientSocket, data, address):
 
@@ -41,17 +56,6 @@ class Server:
 
         #obter caminho para o cliente que enviou a mensagem
         #para enviar mensagem de volta
-
-    def parseBootstrapper(self):
-        bootstrap = json.load(open("bootstrap.json", 'r'))
-
-        for elem in bootstrap:
-            node = elem['node']
-            neighbors = {}
-            for neighbor in elem['vizinhos']:
-                neighbors.append(neighbor)
-            
-            self.bootstrapper[node] = neighbors
 
     def bfs(self, visited, queue, node):
         visited.append(node)
