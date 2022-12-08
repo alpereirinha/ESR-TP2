@@ -16,6 +16,8 @@ class Node:
         #dict([(('10.1.0.10' : [('next_hop','10.2.0.1'), ('num_hops','3'), ('active','yes'))])
         self.previous_node = "" #para guardarmos o nodo de onde veio o flood e não enviarmos para ele (?)
         self.flooded = 0
+        self.neighbours = set()
+        self.ativos = set()
 
     def listen(self):
 
@@ -32,7 +34,7 @@ class Node:
                 for x in aux_msg[1].split(","):
                                    
                     self.lock.acquire()
-                    self.routing_table[x] = (x, 1, "no")                    
+                    self.neighbours.add(x)
                     self.lock.release()
             
             elif aux_msg[0] == "FLOOD" and self.flooded==0:
@@ -40,29 +42,52 @@ class Node:
                 self.flooded += 1
                 print(aux_msg[1])
 
-                try:
-                    value = routing_table[aux_msg[4]][1]
+                try:   # [((IP DO SERVIDOR), (IP DA ORIGEM)): (SALTO, PING)]
+                    value = routing_table[(aux_msg[4], address)][0]
                 except:
                     value = float("inf") 
 
-                # FLOOD (NUMERO DE SALTOS) (TEMPO QUE FOI ACUMULADO ANTES DA ORIGEM) (TEMPO DA ORIGEM) (IP DO SERVIDOR)
+                # FLOOD (NUMERO DE SALTOS) (TEMPO DO INSTANTE DO ENVIO) (TEMPO TOTAL) (IP DO SERVIDOR)
                 if int(aux_msg[1]) + 1 < value:
 
-                    #routing_table[aux_msg[4]][2]
-                    self.routing_table[aux_msg[4]] = (address, int(aux_msg[1]) + 1, "no")  
+                    self.routing_table[(aux_msg[4], address)] = (int(aux_msg[1]) + 1, int(time.time() * 1000) - int(aux_msg[2]) + int(aux_msg[3]))  
                 
-                neighbours = [x for x in self.routing_table if x != aux_msg[4] and x != address]
+                vizinhos = [x for x in self.neighbours if x != aux_msg[4] and x != address]
 
-                for n in neighbours:
+                for n in vizinhos:
                     
-                    self.socket.sendto(("FLOOD " + str(self.routing_table[aux_msg[4]][1]) + " 200 " +  "0 " + aux_msg[4]).encode('utf-8') ,(n, PORT))   
+                    self.socket.sendto(("FLOOD " + str(self.routing_table[(aux_msg[4], address)][0]) + " " + str( int(time.time() * 1000)) + " " + str(self.routing_table[(aux_msg[4], address)][1]) + " " +  aux_msg[4]).encode('utf-8') ,(n, PORT))   
             
             elif aux_msg[0] == "STARTOVERLAY":
                 
-                for x in self.routing_table:
+                for x in self.neighbours:
 
-                    self.socket.sendto(("FLOOD 0 200 0 " + self.host).encode('utf-8') ,(x, PORT))
+                    self.socket.sendto(("FLOOD 0 " + str( int(time.time() * 1000))  + " 0 " + self.host).encode('utf-8') ,(x, PORT))
 
+            elif aux_msg[0] == "CONNECT":
+                
+                print(self.neighbours)
+                
+
+                if self.host != "10.0.0.10" and not len(self.ativos):
+
+                    self.ativos.add(address)
+                    self.socket.sendto((("CONNECT ") + str(self.host)).encode('utf-8') ,(list(self.routing_table.keys())[0][1], 3000))
+                
+                elif self.host == "10.0.0.10" or (self.host != "10.0.0.10" and len(self.ativos)):
+
+                    self.ativos.add(address)
+                    self.socket.sendto(("STREAMING").encode('utf-8') ,(address, port))
+
+            elif aux_msg[0] == "STREAMING":
+
+                for n in self.ativos:
+                    
+                    self.socket.sendto(("STREAMING").encode('utf-8') ,(n, PORT))
+
+            print(f"\n\nTABELA : {self.routing_table}")
+            print(f"VIZINHOS: {self.neighbours}")
+            print(f"ATIVOS: {self.ativos}")         
 
     def servico(self):
 
@@ -71,33 +96,13 @@ class Node:
             time.sleep(3)
             print(self.routing_table)
 
-    def defineRoutes(self, data, address):
-
-        #falta receber
-
-        str_to_send = ""
-        list_to_send = []
-
-        for neighbour in self.routing_table:
-            #deve haver uma maneira melhor de fazer esta string
-            neighbour_str = "key:" + neighbour + ",values:" + ' '.join(self.routing_table[neighbour])
-            #enviar também o instante? para comparar os delays
-            list_to_send.append(neighbour_str)
-        
-        for x in self.routing_table:
-            str_to_send = ';'.join(list_to_send)
-            self.socket.sendto(str_to_send.encode("utf-8"), (x, PORT))
-
-
-
-
 
     def main(self):
 
         threading.Thread(target=self.listen, args=()).start()
         self.socket.sendto("NEIGHBOURS".encode('utf-8'), (self.bootstrapper, 4000))
         
-        threading.Thread(target=self.servico, args=()).start()
+        #threading.Thread(target=self.servico, args=()).start()
 
 if __name__ == '__main__':
 
