@@ -13,6 +13,12 @@ class Server(Node):
     def __init__(self, host, bootstrapper):
         super(Server, self).__init__(host, bootstrapper)
 
+    def connect(self, address, port):
+        self.ativos.add(address)
+        self.socket.sendto(("STREAMING").encode('utf-8') ,(address, port))
+
+    def disconnect(self, address, port):
+        pass
 
     def main(self):
 

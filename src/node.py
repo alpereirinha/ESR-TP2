@@ -29,68 +29,29 @@ class Node:
             
             print(aux_msg)
 
-            if aux_msg[0] == "ADDME":
+            if aux_msg[0] == "ADDME": #recebe a lista de vizinhos a adicionar
 
-                for x in aux_msg[1].split(","):
-                                   
-                    self.lock.acquire()
-                    self.neighbours.add(x)
-                    self.lock.release()
+                self.addNeighbours(aux_msg[1])
             
-            elif aux_msg[0] == "FLOOD" and self.flooded==0:
+            elif aux_msg[0] == "FLOOD" and self.flooded==0: #mensagem de flood (começa no servidor)
 
-                self.flooded += 1
-                print(aux_msg[1])
-
-                try:   # [((IP DO SERVIDOR), (IP DA ORIGEM)): (SALTO, PING)]
-                    value = routing_table[(aux_msg[4], address)][0]
-                except:
-                    value = float("inf") 
-
-                # FLOOD (NUMERO DE SALTOS) (TEMPO DO INSTANTE DO ENVIO) (TEMPO TOTAL) (IP DO SERVIDOR)
-                if int(aux_msg[1]) + 1 < value:
-
-                    self.routing_table[(aux_msg[4], address)] = (int(aux_msg[1]) + 1, int(time.time() * 1000) - int(aux_msg[2]) + int(aux_msg[3]))  
-                
-                vizinhos = [x for x in self.neighbours if x != aux_msg[4] and x != address]
-
-                for n in vizinhos:
-                    
-                    self.socket.sendto(("FLOOD " + str(self.routing_table[(aux_msg[4], address)][0]) + " " + str(int(time.time() * 1000)) + " " + str(self.routing_table[(aux_msg[4], address)][1]) + " " + aux_msg[4]).encode('utf-8'), (n, PORT))   
+                self.handleFlood(address, aux_msg[1], aux_msg[2], aux_msg[3], aux_msg[4])
             
-            elif aux_msg[0] == "STARTOVERLAY":
+            elif aux_msg[0] == "STARTOVERLAY": #começar construção do overlay (a partir do servidor)
                 
                 for x in self.neighbours:
 
                     self.socket.sendto(("FLOOD 0 " + str(int(time.time() * 1000)) + " 0 " + self.host).encode('utf-8') ,(x, PORT))
 
-            elif aux_msg[0] == "CONNECT":
+            elif aux_msg[0] == "CONNECT": #recebe mensagem de um router para se conectar (começa no pc)
                 
-                print(self.neighbours)
+                self.connect(address, port)
 
-                if self.host != "10.0.0.10" and not len(self.ativos):
-
-                    self.ativos.add(address)
-                    self.socket.sendto((("CONNECT ") + str(self.host)).encode('utf-8') ,(list(self.routing_table.keys())[0][1], 3000))
+            elif aux_msg[0] == "DISCONNECT": #pedido para se desconectar
                 
-                elif self.host == "10.0.0.10" or (self.host != "10.0.0.10" and len(self.ativos)):
+                self.disconnect(address, port)
 
-                    self.ativos.add(address)
-                    self.socket.sendto(("STREAMING").encode('utf-8') ,(address, port))
-
-            elif aux_msg[0] == "DISCONNECT":
-                
-                print(f"antigo: {self.ativos}")
-                self.ativos.discard(address)
-                print(f"novo: {self.ativos}")
-
-                if self.host != "10.0.0.10" and not len(self.ativos):
-
-                    self.socket.sendto(("DISCONNECT " + str(self.host)).encode('utf-8'), (list(self.routing_table.keys())[0][1], 3000))
-
-                self.socket.sendto(("STOPSTREAMING").encode('utf-8') ,(address, port))
-
-            elif aux_msg[0] == "STREAMING":
+            elif aux_msg[0] == "STREAMING": #recebe mensagem de um router com streaming (começa no servidor)
 
                 for n in self.ativos:
                     
@@ -99,6 +60,56 @@ class Node:
             print(f"\n\nTABELA : {self.routing_table}")
             print(f"VIZINHOS: {self.neighbours}")
             print(f"ATIVOS: {self.ativos}")
+
+    def addNeighbours(self, msg):
+
+        for x in msg.split(","):
+
+            self.lock.acquire()
+            self.neighbours.add(x)
+            self.lock.release()
+
+    def handleFlood(self, address, hops, instant, total_time, server_ip):
+
+        self.flooded += 1
+        
+        try:
+            # [((IP DO SERVIDOR), (IP DA ORIGEM)): (SALTO, PING)]
+            value = self.routing_table[(server_ip, address)][0]
+        except:
+            value = float("inf") 
+            
+        # FLOOD (NUMERO DE SALTOS) (TEMPO DO INSTANTE DO ENVIO) (TEMPO TOTAL) (IP DO SERVIDOR)
+        if int(hops) + 1 < value:
+            self.routing_table[(server_ip, address)] = (int(hops) + 1, int(time.time() * 1000) - int(instant) + int(total_time))  
+            
+            vizinhos = [x for x in self.neighbours if x != server_ip and x != address] #criar método servidor
+            
+            for n in vizinhos:
+                self.socket.sendto(("FLOOD " + str(self.routing_table[(server_ip, address)][0]) + " " + str(int(time.time() * 1000)) + " " + str(self.routing_table[(server_ip, address)][1]) + " " + server_ip).encode('utf-8'), (n, PORT))   
+
+
+    def connect(self, address, port):
+        print(self.neighbours)
+        
+        if not len(self.ativos):
+            self.ativos.add(address)
+            self.socket.sendto((("CONNECT ") + str(self.host)).encode('utf-8') ,(list(self.routing_table.keys())[0][1], 3000))
+                
+        elif len(self.ativos):
+            self.ativos.add(address)
+            self.socket.sendto(("STREAMING").encode('utf-8') ,(address, port))
+
+
+    def disconnect(self, address, port):
+        print(f"antigo: {self.ativos}")
+        self.ativos.discard(address)
+        print(f"novo: {self.ativos}")
+        
+        if not len(self.ativos):
+            self.socket.sendto(("DISCONNECT " + str(self.host)).encode('utf-8'), (list(self.routing_table.keys())[0][1], 3000))
+            self.socket.sendto(("STOPSTREAMING").encode('utf-8') ,(address, port))
+
 
     def servico(self):
 
