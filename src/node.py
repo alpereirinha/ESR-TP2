@@ -56,18 +56,17 @@ class Node:
 
                 for n in vizinhos:
                     
-                    self.socket.sendto(("FLOOD " + str(self.routing_table[(aux_msg[4], address)][0]) + " " + str( int(time.time() * 1000)) + " " + str(self.routing_table[(aux_msg[4], address)][1]) + " " +  aux_msg[4]).encode('utf-8') ,(n, PORT))   
+                    self.socket.sendto(("FLOOD " + str(self.routing_table[(aux_msg[4], address)][0]) + " " + str(int(time.time() * 1000)) + " " + str(self.routing_table[(aux_msg[4], address)][1]) + " " + aux_msg[4]).encode('utf-8'), (n, PORT))   
             
             elif aux_msg[0] == "STARTOVERLAY":
                 
                 for x in self.neighbours:
 
-                    self.socket.sendto(("FLOOD 0 " + str( int(time.time() * 1000))  + " 0 " + self.host).encode('utf-8') ,(x, PORT))
+                    self.socket.sendto(("FLOOD 0 " + str(int(time.time() * 1000)) + " 0 " + self.host).encode('utf-8') ,(x, PORT))
 
             elif aux_msg[0] == "CONNECT":
                 
                 print(self.neighbours)
-                
 
                 if self.host != "10.0.0.10" and not len(self.ativos):
 
@@ -79,6 +78,18 @@ class Node:
                     self.ativos.add(address)
                     self.socket.sendto(("STREAMING").encode('utf-8') ,(address, port))
 
+            elif aux_msg[0] == "DISCONNECT":
+                
+                print(f"antigo: {self.ativos}")
+                self.ativos.discard(address)
+                print(f"novo: {self.ativos}")
+
+                if self.host != "10.0.0.10" and not len(self.ativos):
+
+                    self.socket.sendto(("DISCONNECT " + str(self.host)).encode('utf-8'), (list(self.routing_table.keys())[0][1], 3000))
+
+                self.socket.sendto(("STOPSTREAMING").encode('utf-8') ,(address, port))
+
             elif aux_msg[0] == "STREAMING":
 
                 for n in self.ativos:
@@ -87,7 +98,7 @@ class Node:
 
             print(f"\n\nTABELA : {self.routing_table}")
             print(f"VIZINHOS: {self.neighbours}")
-            print(f"ATIVOS: {self.ativos}")         
+            print(f"ATIVOS: {self.ativos}")
 
     def servico(self):
 

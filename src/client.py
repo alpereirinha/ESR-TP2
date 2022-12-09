@@ -25,16 +25,18 @@ class Client:
         while True:
             
             data, (address, port) = self.socket.recvfrom(1024) #probably vai ter que ser alterado
-            
             aux_msg = data.decode('utf-8').split(' ')
-            
             print(aux_msg)
 
+    def streaming(self, addr):
+
+        time.sleep(5)
+        self.socket.sendto(("DISCONNECT " + str(self.host)).encode('utf-8'), (addr, 3000))
 
     def main(self, addr):
 
         threading.Thread(target=self.process, args=([addr])).start()
-        #self.socket.sendto("NEIGHBOURS".encode('utf-8'), (self.bootstrapper, 4000))
+        threading.Thread(target=self.streaming, args=([addr])).start()
         
 
 if __name__ == '__main__':
