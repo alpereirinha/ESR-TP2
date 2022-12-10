@@ -4,7 +4,8 @@ from pprint import pprint
 
 class Client(Node):
 
-    def __init__(self, host):
+    def __init__(self, host, bootstrapper):
+        super(Client, self).__init__(host, bootstrapper)
 
         self.host = host
         self.port = 3000
@@ -56,14 +57,15 @@ class Client(Node):
         time.sleep(5)
         self.socket.sendto(("DISCONNECT " + str(self.host)).encode('utf-8'), (addr, 3000))
 
-    def main(self, addr):
+    def main(self):
+        return super().main()
 
-        threading.Thread(target=self.process, args=([addr])).start()
-        self.socket.sendto("NEIGHBOURS".encode('utf-8'), (self.bootstrapper, 4000))
+        #threading.Thread(target=self.process, args=([addr])).start()
+        #self.socket.sendto("NEIGHBOURS".encode('utf-8'), (self.bootstrapper, 4000))
         #threading.Thread(target=self.streaming, args=([addr])).start()
         
 
 if __name__ == '__main__':
 
-    client = Client(sys.argv[1])
-    client.main(sys.argv[2])
+    client = Client(sys.argv[1], sys.argv[2])
+    client.main()

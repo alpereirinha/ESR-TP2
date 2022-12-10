@@ -22,11 +22,7 @@ class Server(Node):
         pass
 
     def main(self):
-
-        threading.Thread(target=self.listen, args=()).start()
-        self.socket.sendto("NEIGHBOURS".encode('utf-8'), (self.bootstrapper, 4000))
-        #não falta começar aqui o flood?
-
+        return super().main()
 
 if __name__ == '__main__':
 

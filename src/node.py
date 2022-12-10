@@ -35,13 +35,26 @@ class Node:
             
             elif aux_msg[0] == "FLOOD": #mensagem de flood (começa no servidor)
 
-                self.handleFlood(address, aux_msg[1], aux_msg[2:], int(time.time() * 1000))
+                self.handleFlood(address, aux_msg[1], aux_msg[2:], int(time.time() * 1000), port)
             
-            elif aux_msg[0] == "STARTOVERLAY": #começar construção do overlay (a partir do servidor)
+            elif aux_msg[0] == "STARTFLOOD": #começar construção do overlay (a partir do servidor)
                 
-                for x in self.neighbours:
+                vizinhos = [x for x in self.routing_table if self.routing_table[x][1] == 1]
+                print ("VIZINHOS: " + str(vizinhos))
 
-                    self.socket.sendto(("FLOOD 0 " + str(int(time.time() * 1000)) + " 0 " + self.host).encode('utf-8') ,(x, PORT))
+                str_to_send = ""
+                list_to_send = []
+                for neighbour in vizinhos:
+                    neighbour_str = neighbour + ":" + ','.join(map(str, self.routing_table[neighbour]))
+                    list_to_send.append(neighbour_str)
+
+                str_to_send = ' '.join(list_to_send)
+                for x in vizinhos:
+                    print("entrei" + str(x))
+                    print("port" + str(port))
+                    self.socket.sendto(("FLOOD " + str(int(time.time() * 1000)) + " " + str_to_send).encode("utf-8"),("10.0.0.1",3000))
+
+                    #self.socket.sendto(("FLOOD 0 " + str(int(time.time() * 1000)) + " 0 " + self.host).encode('utf-8') ,(x, PORT))
 
             elif aux_msg[0] == "CONNECT": #recebe mensagem de um router para se conectar (começa no pc)
                 
@@ -58,8 +71,8 @@ class Node:
                     self.socket.sendto(("STREAMING").encode('utf-8') ,(n, PORT))
 
             print(f"\n\nTABELA : {self.routing_table}")
-            print(f"VIZINHOS: {self.neighbours}")
-            print(f"ATIVOS: {self.ativos}")
+            #print(f"VIZINHOS: {self.neighbours}")
+            #print(f"ATIVOS: {self.ativos}")
 
     def addNeighbours(self, msg):
 
@@ -69,7 +82,7 @@ class Node:
             self.routing_table[x] = (x, 1, -1, 'no')
             self.lock.release()
 
-    def handleFlood(self, address, instant, table, my_instant):
+    def handleFlood(self, address, instant, table, my_instant, port):
 
         changed = 0
 
@@ -106,11 +119,12 @@ class Node:
                 str_to_send = ""
                 list_to_send = []
                 for neighbour in vizinhos:
-                    neighbour_str = neighbour + ":" + ','.join(self.routing_table[neighbour])
+                    neighbour_str = neighbour + ":" + ','.join(map(str, self.routing_table[neighbour]))
                     list_to_send.append(neighbour_str)
 
                 str_to_send = ' '.join(list_to_send)
-                self.socket.send(("FLOOD " + str(int(time.time() * 1000)) + " " + str_to_send).encode("utf-8"))
+                for x in vizinhos:
+                    self.socket.sendto(("FLOOD " + str(int(time.time() * 1000)) + " " + str_to_send).encode("utf-8"),(x,port))
                 #FLOOD instant neighbour1:value1,value2,value3 neighbour:value1,value2,value3
 
 
