@@ -14,6 +14,7 @@ class Server(Node):
         super(Server, self).__init__(host, bootstrapper)
 
     def connect(self, address, port):
+
         self.ativos.add(address)
         self.socket.sendto(("STREAMING").encode('utf-8') ,(address, port))
 
@@ -24,6 +25,7 @@ class Server(Node):
 
         threading.Thread(target=self.listen, args=()).start()
         self.socket.sendto("NEIGHBOURS".encode('utf-8'), (self.bootstrapper, 4000))
+        #não falta começar aqui o flood?
 
 
 if __name__ == '__main__':

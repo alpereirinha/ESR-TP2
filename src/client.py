@@ -2,7 +2,7 @@ from node import Node
 import socket, threading, sys, os, time
 from pprint import pprint
 
-class Client:
+class Client(Node):
 
     def __init__(self, host):
 
@@ -13,14 +13,37 @@ class Client:
         self.lock = threading.Lock()
 
     
-    def connect(self, addr):
+    def sendConnect(self, addr):
 
         self.socket.sendto(("CONNECT " + str(self.host)).encode('utf-8'), (addr, 3000))
+
+    def handleFlood(self, address, hops, instant, total_time, server_ip):
+        self.flooded += 1
+        
+        try:
+            # [((IP DO SERVIDOR), (IP DA ORIGEM)): (SALTO, PING)]
+            value = self.routing_table[(server_ip, address)][0]
+        except:
+            value = float("inf") 
+            
+        # FLOOD (NUMERO DE SALTOS) (TEMPO DO INSTANTE DO ENVIO) (TEMPO TOTAL) (IP DO SERVIDOR)
+        if int(hops) + 1 < value:
+            self.routing_table[(server_ip, address)] = (int(hops) + 1, int(time.time() * 1000) - int(instant) + int(total_time))
+
+    def connect(self, address, port):
+        print(self.neighbours)
+        
+        if not len(self.ativos): #se ainda não tiver vizinhos ativos
+            self.ativos.add(address)
+                
+        elif len(self.ativos): #se já tiver vizinhos ativos
+            self.ativos.add(address)
+            self.socket.sendto(("STREAMING").encode('utf-8') ,(address, port)) #começa o streaming
 
 
     def process(self, addr):
         
-        self.connect(addr)
+        #self.connect(addr)
 
         while True:
             
@@ -36,7 +59,8 @@ class Client:
     def main(self, addr):
 
         threading.Thread(target=self.process, args=([addr])).start()
-        threading.Thread(target=self.streaming, args=([addr])).start()
+        self.socket.sendto("NEIGHBOURS".encode('utf-8'), (self.bootstrapper, 4000))
+        #threading.Thread(target=self.streaming, args=([addr])).start()
         
 
 if __name__ == '__main__':

@@ -14,10 +14,10 @@ class Node:
         self.routing_table = {}
         #possível sintaxe do dicionário i guess:
         #dict([(('10.1.0.10' : [('next_hop','10.2.0.1'), ('num_hops','3'), ('active','yes'))])
-        self.previous_node = "" #para guardarmos o nodo de onde veio o flood e não enviarmos para ele (?)
-        self.flooded = 0
-        self.neighbours = set()
-        self.ativos = set()
+        #self.previous_node = "" #para guardarmos o nodo de onde veio o flood e não enviarmos para ele (?)
+        #self.flooded = 0
+        #self.neighbours = set()
+        #self.ativos = set()
 
     def listen(self):
 
@@ -33,9 +33,9 @@ class Node:
 
                 self.addNeighbours(aux_msg[1])
             
-            elif aux_msg[0] == "FLOOD" and self.flooded==0: #mensagem de flood (começa no servidor)
+            elif aux_msg[0] == "FLOOD": #mensagem de flood (começa no servidor)
 
-                self.handleFlood(address, aux_msg[1], aux_msg[2], aux_msg[3], aux_msg[4])
+                self.handleFlood(address, aux_msg[1], aux_msg[2:], int(time.time() * 1000))
             
             elif aux_msg[0] == "STARTOVERLAY": #começar construção do overlay (a partir do servidor)
                 
@@ -66,37 +66,62 @@ class Node:
         for x in msg.split(","):
 
             self.lock.acquire()
-            self.neighbours.add(x)
+            self.routing_table[x] = (x, 1, -1, 'no')
             self.lock.release()
 
-    def handleFlood(self, address, hops, instant, total_time, server_ip):
+    def handleFlood(self, address, instant, table, my_instant):
 
-        self.flooded += 1
-        
-        try:
-            # [((IP DO SERVIDOR), (IP DA ORIGEM)): (SALTO, PING)]
-            value = self.routing_table[(server_ip, address)][0]
-        except:
-            value = float("inf") 
-            
-        # FLOOD (NUMERO DE SALTOS) (TEMPO DO INSTANTE DO ENVIO) (TEMPO TOTAL) (IP DO SERVIDOR)
-        if int(hops) + 1 < value:
-            self.routing_table[(server_ip, address)] = (int(hops) + 1, int(time.time() * 1000) - int(instant) + int(total_time))  
-            
-            vizinhos = [x for x in self.neighbours if x != server_ip and x != address] #criar método servidor
-            
-            for n in vizinhos:
-                self.socket.sendto(("FLOOD " + str(self.routing_table[(server_ip, address)][0]) + " " + str(int(time.time() * 1000)) + " " + str(self.routing_table[(server_ip, address)][1]) + " " + server_ip).encode('utf-8'), (n, PORT))   
+        changed = 0
+
+        entries = table.split(" ") 
+
+        for entry in entries:
+            key = entry.split(":")[0]
+            values = entry.split(":")[1]
+            tempo = my_instant-instant+ float(values[2]) #float?
+            if (key in self.routing_table): #entrada já existe na minha tabela
+
+                if (self.routing_table[key][2] != -1): #entrada já foi preenchida com algum valor previamente
+
+                    if((self.routing_table[key][2] > tempo) #valor que recebo para um certo destino é menor
+                    or (self.routing_table[key][2] == tempo and int(values[1]) + 1 < self.routing_table[key][1])):
+                    #valor que recebo é igual ao que já tenho mas tem menor número de saltos
+
+                        self.routing_table[key][0] = values[0] #altera o nodo pela qual tem que seguir
+                        self.routing_table[key][1] = int(values[1]) + 1 #altera o número de saltos para lá chegar
+                        self.routing_table[key][2] = tempo #altera o tempo (em ms) para lá chegar
+                        changed = 1
+
+                else: #entrada existe mas ainda não foi ainda preenchida com tempo (caso dos vizinhos)
+                    self.routing_table[key][2] = tempo #altera o tempo (em ms) para lá chegar
+                    changed = 1
+
+            else: #entrada não existe
+                self.routing_table[key] = (values[0], int(values[1]) + 1, tempo, 'no')
+                changed = 1
+
+            if (changed): #só continuo o flood se a minha tabela tiver alterado
+                vizinhos = [x for x in self.routing_table if self.routing_table[x][1] == 1 and x != address]
+
+                str_to_send = ""
+                list_to_send = []
+                for neighbour in vizinhos:
+                    neighbour_str = neighbour + ":" + ','.join(self.routing_table[neighbour])
+                    list_to_send.append(neighbour_str)
+
+                str_to_send = ' '.join(list_to_send)
+                self.socket.send(("FLOOD " + str(int(time.time() * 1000)) + " " + str_to_send).encode("utf-8"))
+                #FLOOD instant neighbour1:value1,value2,value3 neighbour:value1,value2,value3
 
 
     def connect(self, address, port):
         print(self.neighbours)
         
-        if not len(self.ativos):
+        if not len(self.ativos): #se ainda não tiver vizinhos ativos
             self.ativos.add(address)
             self.socket.sendto((("CONNECT ") + str(self.host)).encode('utf-8') ,(list(self.routing_table.keys())[0][1], 3000))
                 
-        elif len(self.ativos):
+        elif len(self.ativos): #se já tiver vizinhos ativos
             self.ativos.add(address)
             self.socket.sendto(("STREAMING").encode('utf-8') ,(address, port))
 
