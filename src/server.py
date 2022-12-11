@@ -4,7 +4,7 @@ import json
 import threading
 from random import randint
 import sys, traceback, threading, socket
-from VideoStream import VideoStream
+from videostream import VideoStream
 from RtpPacket import RtpPacket
 
 PORT = 3000
@@ -16,7 +16,7 @@ class Server(Node):
     
     def __init__(self, host, bootstrapper):
         super(Server, self).__init__(host, bootstrapper)
-        self.videostream = VideoStream(FILENAME)
+        #self.videostream = VideoStream(FILENAME)
         self.rtpSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def start_stream(self, address, port):
@@ -87,7 +87,7 @@ class Server(Node):
 
     def main(self):
         super().main()
-        threading.Thread(target=self.sendRtp).start()
+        #threading.Thread(target=self.sendRtp).start()
 
 if __name__ == '__main__':
 

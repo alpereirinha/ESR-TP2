@@ -9,7 +9,7 @@ class Bootstrap:
         self.host = host
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.nodes = {} #para guardar os nodos e os vizinhos existentes
-        #sintaxe : {'10.0.0.10': ['10.0.1.1','10.0.1.2'])}
+        #sintaxe : {'s1': ['r1:10.0.1.1','r2:10.0.1.2'])}
         
 
     def parseBootstrapper(self):
@@ -26,11 +26,11 @@ class Bootstrap:
             
             self.nodes[node] = neighbors
 
-    def sendNeighbours(self, addr):
+    def sendNeighbours(self, addr, name):
 
-        neighbours = ','.join(self.nodes[addr])
+        neighbours = ','.join(self.nodes[name])
         self.socket.sendto(("ADDME " + neighbours).encode('utf-8'), (addr, 3000))
-        self.nodes.pop(addr)
+        self.nodes.pop(name)
         print("NODES: " + str(self.nodes))
         if len(self.nodes) == 0:
             self.socket.sendto(("STARTFLOOD").encode('utf-8'), ('10.0.0.10', 3000)) 
@@ -47,7 +47,7 @@ class Bootstrap:
         
             if aux_msg[0] == "NEIGHBOURS":
                 
-                self.sendNeighbours(address)
+                self.sendNeighbours(address, aux_msg[1])
                 
             #defineRoutes(data,address)    
 

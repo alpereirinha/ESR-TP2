@@ -10,10 +10,11 @@ class Node:
         self.host = host
         self.bootstrapper = bootstrapper
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.bind((host, PORT))
+        self.socket.bind(("", PORT))
         self.socket2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket2.bind((host, 5000))
+        self.socket2.bind(("", 5000))
         self.routing_table = {}
+        self.ips = {}
         #possível sintaxe do dicionário i guess:
         #dict([(('10.1.0.10' : [('next_hop','10.2.0.1'), ('num_hops','3'), ('active','yes'))])
         #self.previous_node = "" #para guardarmos o nodo de onde veio o flood e não enviarmos para ele (?)
@@ -29,7 +30,7 @@ class Node:
 
             aux_msg = data.decode('utf-8').split(' ')
 
-            print(aux_msg)
+            #print(aux_msg)
 
             if aux_msg[0] == "ADDME": #recebe a lista de vizinhos a adicionar
 
@@ -40,23 +41,8 @@ class Node:
                 self.handleFlood(address, int(aux_msg[1]), aux_msg[2:], int(time.time() * 1000), port)
             
             elif aux_msg[0] == "STARTFLOOD": #começar construção do overlay (a partir do servidor)
-                
-                vizinhos = [x for x in self.routing_table if self.routing_table[x][1] == 1]
-                print ("VIZINHOS: " + str(vizinhos))
 
-                str_to_send = ""
-                list_to_send = []
-                for neighbour in vizinhos:
-                    neighbour_str = neighbour + ":" + ','.join(map(str, self.routing_table[neighbour]))
-                    list_to_send.append(neighbour_str)
-
-                str_to_send = ' '.join(list_to_send)
-                for x in vizinhos:
-                    print("entrei" + str(x))
-                    print("port" + str(port))
-                    self.socket.sendto(("FLOOD " + str(int(time.time() * 1000)) + " " + str_to_send).encode("utf-8"),(x, PORT))
-
-                    #self.socket.sendto(("FLOOD 0 " + str(int(time.time() * 1000)) + " 0 " + self.host).encode('utf-8') ,(x, PORT))
+                self.startFlood()
 
             elif aux_msg[0] == "STARTSTREAMING": #recebe mensagem de um router para começar a stream
                 
@@ -82,61 +68,90 @@ class Node:
 
         for n in [x for x in self.routing_table if self.routing_table[x][3] == "yes"]:
             
-            self.socket.sendto(data, (n, 5000))
+            self.socket.sendto(data, (self.ips[n], 5000))
 
     def addNeighbours(self, msg):
 
         for x in msg.split(","):
+            info = x.split(":")
 
             self.lock.acquire()
-            self.routing_table[x] = (x, 1, -1, 'no')
+            self.routing_table[info[0]] = (info[1], 1, -1, 'no')
+            self.ips[info[0]] = info[1]
             self.lock.release()
 
     def handleFlood(self, address, instant, table, my_instant, port):
 
         changed = 0
 
-        entries = table
-        print(entries)
+        print(table)
+        print("RECEIVED:" + address)
+        print("DIFERENCA:" + str(my_instant-instant))
 
-        for entry in entries:
+        for entry in table:
             splited = entry.split(":")
             key = splited[0]
             values = splited[1].split(',')
-            print("VALUES: " + str(values))
-            tempo = my_instant-instant + int(values[2]) #float?
+            #print("VALUES: " + str(values))
+            tempo = my_instant-instant + int(values[2])
             if (key in self.routing_table): #entrada já existe na minha tabela
+                if(key != self.host): #entrada não é referente a mim
+                    if (key in self.ips and self.ips[key] == address): #entrada é do vizinho da qual estou a receber
+                         if(self.routing_table[key][2] == -1 or self.routing_table[key][2] > my_instant-instant):
+                            self.routing_table[key] = (self.ips[key], 1, my_instant-instant, 'no')
 
-                if (self.routing_table[key][2] != -1): #entrada já foi preenchida com algum valor previamente
+                    else: #entrada NÃO é do vizinho que estou a receber
+                        if (self.routing_table[key][2] != -1): #entrada já foi preenchida com algum valor previamente
 
-                    if((self.routing_table[key][2] > tempo) #valor que recebo para um certo destino é menor
-                    or (self.routing_table[key][2] == tempo and int(values[1]) + 1 < self.routing_table[key][1])):
-                    #valor que recebo é igual ao que já tenho mas tem menor número de saltos
-                        self.routing_table[key] = (address, int(values[1]) + 1, tempo, self.routing_table[key][3])
-                        changed = 1
+                            if((self.routing_table[key][2] > tempo) #valor que recebo para um certo destino é menor
+                            or (self.routing_table[key][2] == tempo and int(values[1]) + 1 < self.routing_table[key][1])):
+                            #valor que recebo é igual ao que já tenho mas tem menor número de saltos
+                                self.routing_table[key] = (address, int(values[1]) + 1, tempo, self.routing_table[key][3])
+                                changed = 1
 
-                else: #entrada existe mas ainda não foi ainda preenchida com tempo (caso dos vizinhos)
-                    self.routing_table[key] = (self.routing_table[key][0], self.routing_table[key][1], tempo, self.routing_table[key][3]) #altera o tempo (em ms) para lá chegar
-                    changed = 1
+                        else: #entrada existe mas ainda não foi ainda preenchida com tempo (caso dos vizinhos)
+                            if (self.ips[key] != address): #quem está a preencher não é o vizinho
+                                self.routing_table[key] = (address, int(values[1]) + 1, tempo, self.routing_table[key][3]) #altera o tempo (em ms) para lá chegar
+                                changed = 1
+                            else:
+                                self.routing_table[address] = (address, 1, my_instant-instant, 'no')
+
 
             else: #entrada não existe
+                if (key == self.host):
+                    self.routing_table[key] = (-1, 0, 0, 'no')
+                    #changed = 1
+                #else:
                 self.routing_table[key] = (address, int(values[1]) + 1, tempo, 'no')
                 changed = 1
 
-            if (changed): #só continuo o flood se a minha tabela tiver alterado
-                vizinhos = [x for x in self.routing_table if self.routing_table[x][1] == 1]
+        if (changed): #só continuo o flood se a minha tabela tiver alterado
+            vizinhos = [x for x in self.routing_table if self.routing_table[x][1] == 1]
 
-                str_to_send = ""
-                list_to_send = []
-                for neighbour in self.routing_table:
-                    neighbour_str = neighbour + ":" + ','.join(map(str, self.routing_table[neighbour]))
-                    list_to_send.append(neighbour_str)
+            str_to_send = ""
+            list_to_send = []
+            for neighbour in self.routing_table:
+                neighbour_str = neighbour + ":" + ','.join(map(str, self.routing_table[neighbour]))
+                list_to_send.append(neighbour_str)
 
                 str_to_send = ' '.join(list_to_send)
                 for x in vizinhos:
-                    self.socket.sendto(("FLOOD " + str(int(time.time() * 1000)) + " " + str_to_send).encode("utf-8"),(x,port))
+                    self.socket.sendto(("FLOOD " + str(int(time.time() * 1000)) + " " + str_to_send).encode("utf-8"),(self.ips[x],port))
                 #FLOOD instant neighbour1:value1,value2,value3 neighbour:value1,value2,value3
+    
+    def startFlood(self):
+        vizinhos = [x for x in self.routing_table if self.routing_table[x][1] == 1]
+        print ("VIZINHOS: " + str(vizinhos))
 
+        str_to_send = ""
+        list_to_send = []
+        for neighbour in vizinhos:
+            neighbour_str = neighbour + ":" + ','.join(map(str, self.routing_table[neighbour]))
+            list_to_send.append(neighbour_str)
+
+        str_to_send = ' '.join(list_to_send)
+        for x in vizinhos:
+            self.socket.sendto(("FLOOD " + str(int(time.time() * 1000)) + " " + str_to_send).encode("utf-8"),(self.ips[x], PORT))
 
     def start_stream(self, address, port):
 
@@ -152,7 +167,7 @@ class Node:
         
         if not len([x for x in self.routing_table if self.routing_table[x][3] == "yes"]):
 
-            self.socket.sendto(("STOPSTREAMING").encode('utf-8') ,(self.routing_table["10.0.0.10"][0], PORT))
+            self.socket.sendto(("STOPSTREAMING").encode('utf-8') ,(self.routing_table["s1"][0], PORT))
 
     def servico(self):
 
@@ -166,7 +181,7 @@ class Node:
 
         threading.Thread(target=self.listen, args=()).start()
         threading.Thread(target=self.listenRTP, args=()).start()
-        self.socket.sendto("NEIGHBOURS".encode('utf-8'), (self.bootstrapper, 4000))
+        self.socket.sendto(("NEIGHBOURS " + str(self.host)).encode('utf-8'), (self.bootstrapper, 4000))
         
         #threading.Thread(target=self.servico, args=()).start()
 
