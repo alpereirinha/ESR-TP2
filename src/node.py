@@ -14,13 +14,15 @@ class Node:
         self.socket2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket2.bind(("", 5000))
         self.routing_table = {}
+        self.aux_routing_table = {}
         self.ips = {}
         self.keys = {}
+        self.flood_nr = 0
         #possível sintaxe do dicionário i guess:
         #dict([(('10.1.0.10' : [('next_hop','10.2.0.1'), ('num_hops','3'), ('active','yes'))])
         #self.previous_node = "" #para guardarmos o nodo de onde veio o flood e não enviarmos para ele (?)
         #self.flooded = 0
-        #self.neighbours = set()
+        self.neighbours = {}
         #self.ativos = set()
 
     def listen(self):
@@ -39,11 +41,17 @@ class Node:
 
             elif aux_msg[0] == "FLOOD": #mensagem de flood (começa no servidor)
 
-                self.handleFlood(address, int(aux_msg[1]), aux_msg[2:], int(time.time() * 1000), port)
+                self.handleFlood(address, int(aux_msg[1]), int(aux_msg[2]), aux_msg[3:], int(time.time() * 1000), port)
             
             elif aux_msg[0] == "STARTFLOOD": #começar construção do overlay (a partir do servidor)
 
                 self.startFlood()
+                #print("acabei flood")
+                time.sleep(30)
+                #print("vou começar novo flood")
+                self.startFlood()
+
+                #FALTA IMPLEMENTAR OS FLOODS PERIODICOS DIREITOS
 
             elif aux_msg[0] == "STARTSTREAMING": #recebe mensagem de um router para começar a stream
                 
@@ -53,7 +61,7 @@ class Node:
 
                 self.stop_stream(address, PORT)
 
-            print(f"\n\nTABELA : {self.routing_table}")
+            print(f"\n\nTABELA : {self.aux_routing_table}")
             #print(f"VIZINHOS: {self.neighbours}")
             #print(f"ATIVOS: {self.ativos}")
 
@@ -77,23 +85,33 @@ class Node:
             info = x.split(":")
 
             self.lock.acquire()
-            self.routing_table[info[0]] = (info[1], 1, -1, 'no')
+            self.aux_routing_table[info[0]] = (info[1], 1, -1, 'no')
             self.ips[info[0]] = info[1]
             self.keys[info[1]] = info[0]
+            #self.neighbours.add(info[0])
             self.lock.release()
-        self.routing_table[self.host] = (self.host, 0, 0, 'no')
+        self.aux_routing_table[self.host] = (self.host, 0, 0, 'no')
+        self.neighbours = dict(self.aux_routing_table)
 
-    def handleFlood(self, address, instant, table, my_instant, port):
+    def handleFlood(self, address, instant, flood, table, my_instant, port):
 
         changed = 0
 
-        print(table)
+        if(self.flood_nr != flood): 
+            self.flood_nr = flood
+            if(self.flood_nr > 1):
+                self.aux_routing_table.clear()
+                self.aux_routing_table = dict(self.neighbours)
+
+        #print(table)
         #print("RECEIVED:" + address)
+        #print("my instant: " + str(my_instant))
+        #print("instant: " + str(instant))
         #print("DIFERENCA:" + str(my_instant-instant))
 
-        if (self.routing_table[self.keys[address]][2] == -1 or 
-        self.routing_table[self.keys[address]][2] > my_instant-instant):
-            self.routing_table[self.keys[address]] = (address, 1, my_instant-instant, self.routing_table[self.keys[address]][3])
+        if (self.aux_routing_table[self.keys[address]][2] == -1 or 
+        self.aux_routing_table[self.keys[address]][2] > my_instant-instant):
+            self.aux_routing_table[self.keys[address]] = (address, 1, my_instant-instant, self.aux_routing_table[self.keys[address]][3])
             changed = 1
 
         for entry in table:
@@ -102,62 +120,73 @@ class Node:
             values = splited[1].split(',')
             #print("VALUES: " + str(values))
             tempo = my_instant-instant + int(values[2])
-            if (key in self.routing_table): #entrada já existe na minha tabela
+            if (key in self.aux_routing_table): #entrada já existe na minha tabela
                 if(int(values[2]) != -1): #se o vizinho que me enviou já sabe o tempo
                     if(key != self.host): #entrada não é referente a mim
                         if (key in self.ips and self.ips[key] == address): #entrada é do vizinho da qual estou a receber
-                            if(self.routing_table[key][2] == -1 or self.routing_table[key][2] > my_instant-instant):
-                                self.routing_table[key] = (self.ips[key], 1, my_instant-instant, 'no')
+                            if(self.aux_routing_table[key][2] == -1 or self.aux_routing_table[key][2] > my_instant-instant):
+                                self.aux_routing_table[key] = (self.ips[key], 1, my_instant-instant, 'no')
 
                         else: #entrada NÃO é do vizinho que estou a receber
-                            if (self.routing_table[key][2] != -1): #entrada já foi preenchida com algum valor previamente
+                            if (self.aux_routing_table[key][2] != -1): #entrada já foi preenchida com algum valor previamente
 
-                                if((self.routing_table[key][2] > tempo) #valor que recebo para um certo destino é menor
-                                or (self.routing_table[key][2] == tempo and int(values[1]) + 1 < self.routing_table[key][1])):
+                                if((self.aux_routing_table[key][2] > tempo) #valor que recebo para um certo destino é menor
+                                or (self.aux_routing_table[key][2] == tempo and int(values[1]) + 1 < self.aux_routing_table[key][1])):
                                 #valor que recebo é igual ao que já tenho mas tem menor número de saltos
-                                    self.routing_table[key] = (address, int(values[1]) + 1, tempo, self.routing_table[key][3])
+                                    self.aux_routing_table[key] = (address, int(values[1]) + 1, tempo, self.aux_routing_table[key][3])
                                     changed = 1
 
                             else: #entrada existe mas ainda não foi ainda preenchida com tempo (caso dos vizinhos)
                                 if (self.ips[key] != address): #quem está a preencher não é o vizinho
-                                    self.routing_table[key] = (address, int(values[1]) + 1, tempo, self.routing_table[key][3]) #altera o tempo (em ms) para lá chegar
+                                    self.aux_routing_table[key] = (address, int(values[1]) + 1, tempo, self.aux_routing_table[key][3]) #altera o tempo (em ms) para lá chegar
                                     changed = 1
                                 else:
-                                    self.routing_table[address] = (address, 1, my_instant-instant, 'no')
+                                    self.aux_routing_table[address] = (address, 1, my_instant-instant, 'no')
                                     changed = 1
 
             else: #entrada não existe
                 if(int(values[2]) != -1): #se o vizinho que me enviou já sabe o tempo
-                    self.routing_table[key] = (address, int(values[1]) + 1, tempo, 'no')
+                    self.aux_routing_table[key] = (address, int(values[1]) + 1, tempo, 'no')
                     changed = 1
 
         if (changed): #só continuo o flood se a minha tabela tiver alterado
-            vizinhos = [x for x in self.routing_table if self.routing_table[x][1] == 1]
+            vizinhos = [x for x in self.aux_routing_table if self.aux_routing_table[x][1] == 1]
 
             str_to_send = ""
             list_to_send = []
-            for neighbour in self.routing_table:
-                neighbour_str = neighbour + ":" + ','.join(map(str, self.routing_table[neighbour]))
+            for neighbour in self.aux_routing_table:
+                neighbour_str = neighbour + ":" + ','.join(map(str, self.aux_routing_table[neighbour]))
                 list_to_send.append(neighbour_str)
 
                 str_to_send = ' '.join(list_to_send)
                 for x in vizinhos:
-                    self.socket.sendto(("FLOOD " + str(int(time.time() * 1000)) + " " + str_to_send).encode("utf-8"),(self.ips[x],port))
+                    self.socket.sendto(("FLOOD " + str(int(time.time() * 1000)) + " " + str(self.flood_nr) + " " + str_to_send).encode("utf-8"),(self.ips[x],port))
                 #FLOOD instant neighbour1:value1,value2,value3 neighbour:value1,value2,value3
+
+        else: #se já não mudou posso passar a auxiliar para principal
+            #print("PAREI DE MUDAR")
+            self.routing_table = dict(self.aux_routing_table)
+            print(f"\n\nNOVA TABELA : {self.routing_table}")
     
     def startFlood(self):
-        vizinhos = [x for x in self.routing_table if self.routing_table[x][1] == 1]
+        self.flood_nr += 1
+        if (self.flood_nr > 1):
+            self.aux_routing_table.clear()
+            self.aux_routing_table = dict(self.neighbours)
+
+        vizinhos = [x for x in self.neighbours if x != self.host] #if self.aux_routing_table[x][1] == 1]
         print ("VIZINHOS: " + str(vizinhos))
 
         str_to_send = ""
         list_to_send = []
         for neighbour in vizinhos:
-            neighbour_str = neighbour + ":" + ','.join(map(str, self.routing_table[neighbour]))
+            neighbour_str = neighbour + ":" + ','.join(map(str, self.aux_routing_table[neighbour]))
             list_to_send.append(neighbour_str)
 
         str_to_send = ' '.join(list_to_send)
+
         for x in vizinhos:
-            self.socket.sendto(("FLOOD " + str(int(time.time() * 1000)) + " " + str_to_send).encode("utf-8"),(self.ips[x], PORT))
+            self.socket.sendto(("FLOOD " + str(int(time.time() * 1000)) + " " + str(self.flood_nr) + " " + str_to_send).encode("utf-8"),(self.ips[x], PORT))
 
     def start_stream(self, address, port):
 
@@ -195,4 +224,3 @@ if __name__ == '__main__':
 
     node = Node(sys.argv[1], sys.argv[2])
     node.main()
-
