@@ -22,11 +22,36 @@ class Server(Node):
 
     def start_stream(self, nome, port):
 
-        self.routing_tables[self.server][nome] = (self.routing_tables[self.server][nome][1], self.routing_tables[self.server][nome][2], self.routing_tables[self.server][nome][0], "yes")
+        self.routing_tables[self.host][nome] = (self.routing_tables[self.host][nome][1], self.routing_tables[self.host][nome][2], self.routing_tables[self.host][nome][0], "yes")
+        threading.Thread(target=self.sendRtp).start()
 
     def stop_stream(self, nome, port):
 
-        self.routing_tables[self.server][nome] = (self.routing_tables[self.server][nome][1], self.routing_tables[self.server][nome][2], self.routing_tables[self.server][nome][0], "no")
+        self.routing_tables[self.host][nome] = (self.routing_tables[self.host][nome][1], self.routing_tables[self.host][nome][2], self.routing_tables[self.host][nome][0], "no")
+
+    def check_server(self):
+        pass
+
+    def startFlood(self):
+
+        self.flood_nr += 1
+        if (self.flood_nr > 1):
+            self.aux_routing_tables[self.host].clear()
+            self.aux_routing_tables[self.host] = dict(self.neighbours)
+
+        vizinhos = [x for x in self.neighbours if x != self.host] #if self.aux_routing_tables[self.server][x][1] == 1]
+        print ("VIZINHOS: " + str(vizinhos))
+
+        str_to_send = ""
+        list_to_send = []
+        for neighbour in vizinhos:
+            neighbour_str = neighbour + ":" + ','.join(map(str, self.aux_routing_tables[self.host][neighbour]))
+            list_to_send.append(neighbour_str)
+
+        str_to_send = ' '.join(list_to_send)
+
+        for x in vizinhos:
+            self.socket.sendto(("FLOOD " + self.host + " " + str(int(time.time() * 1000)) + " " + str(self.flood_nr) + " " + str_to_send).encode("utf-8"),(self.ips[x], PORT))
 
     def sendRtp(self):
         """Send RTP packets over UDP."""
@@ -38,8 +63,8 @@ class Server(Node):
 
                 frameNumber = self.videostream.frameNbr()
 
-                # print([x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"])
-                for node in [x for x in self.routing_tables[self.server] if self.routing_tables[self.host][x][3] == "yes"]:
+                print([x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"])
+                for node in [x for x in self.routing_tables[self.host] if self.routing_tables[self.host][x][3] == "yes"]:
                     try:
                         address = self.ips[node]
                         port = 5000
@@ -54,7 +79,7 @@ class Server(Node):
             else:
                 self.videostream.file.seek(0)
                 self.videostream.frameNum = 0
-
+            time.sleep(0.04)
         # Close the RTP socket
         self.rtpSocket.close()
         print("All done!")
@@ -84,8 +109,7 @@ class Server(Node):
 
         #     # mudar isto para await
         #     time.sleep(15)
-
-        threading.Thread(target=self.sendRtp).start()
+        # threading.Thread(target=self.sendRtp).start()
 
 if __name__ == '__main__':
 

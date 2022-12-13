@@ -8,7 +8,7 @@ class Bootstrap:
         
         self.host = host
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.servers = []
+        self.servers = {}
         self.nodes = {} #para guardar os nodos e os vizinhos existentes
         #sintaxe : {'s1': ['r1:10.0.1.1','r2:10.0.1.2'])}
 
@@ -17,14 +17,14 @@ class Bootstrap:
         file = json.load(open("bootstrap.json", 'r'))
 
         print(file)
+
+        for server in file["servers"]:
+
+            self.servers[server["node"]] = server["ip"]
         
-        for elem in file:
+        for elem in file["overlay"]:
+
             node = elem['node']
-
-            if node[0] == "s":
-                
-                self.servers.append(node)
-
             neighbors = []
             for neighbor in elem['vizinhos']:
                 neighbors.append(neighbor)
@@ -34,11 +34,14 @@ class Bootstrap:
     def sendNeighbours(self, addr, name):
 
         neighbours = ','.join(self.nodes[name])
-        self.socket.sendto(("ADDME " + ','.join(self.servers) + " " + neighbours).encode('utf-8'), (addr, 3000))
+        self.socket.sendto(("ADDME " + ','.join(list(self.servers.keys())) + " " + neighbours).encode('utf-8'), (addr, 3000))
         self.nodes.pop(name)
         print("NODES: " + str(self.nodes))
         if len(self.nodes) == 0:
-            self.socket.sendto(("STARTFLOOD").encode('utf-8'), ('10.0.0.10', 3000)) 
+
+            for server in self.servers:
+
+                self.socket.sendto(("STARTFLOOD").encode('utf-8'), (self.servers[server], 3000)) 
 
     def servico_bt(self):
 

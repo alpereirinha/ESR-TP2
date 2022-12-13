@@ -21,8 +21,8 @@ class ClienteGUI:
 		self.sessionId = 0
 		self.requestSent = -1
 		self.teardownAcked = 0
-		self.openRtpPort()
-		self.playMovie()
+		# self.openRtpPort()
+		# self.playMovie()
 		self.frameNbr = 0
 		
 	def createWidgets(self):
@@ -138,3 +138,4 @@ class ClienteGUI:
 			self.exitClient()
 		else: # When the user presses cancel, resume playing.
 			self.playMovie()
+

@@ -24,7 +24,10 @@ class Client(Node):
     def stop_stream(self):
 
         self.socket.sendto(("STOPSTREAMING").encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
-        
+
+    def startFlood():
+        pass
+
     def handle_stream(self, data):
 
         rtpPacket = RtpPacket()
@@ -39,6 +42,9 @@ class Client(Node):
 
         if self.clienteGUI.frameNbr == 500:
             self.clienteGUI.frameNbr = 0
+
+    def check_server(self):
+        pass
 
     def main(self):
 
