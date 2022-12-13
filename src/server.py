@@ -3,42 +3,34 @@ from node import Node
 import json
 import threading
 from random import randint
-import sys, traceback, threading, socket
-from videostream import VideoStream
+import sys, traceback, threading, socket, time
+from VideoStream import VideoStream
 from RtpPacket import RtpPacket
 
 PORT = 3000
 
 FILENAME = "movie.Mjpeg"
 BOOTSTRAP = "bootstrap.json"
+TIME = 3
 
 class Server(Node):
-    
+
     def __init__(self, host, bootstrapper):
         super(Server, self).__init__(host, bootstrapper)
-        #self.videostream = VideoStream(FILENAME)
+        self.videostream = VideoStream(FILENAME)
         self.rtpSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    def start_stream(self, address, port):
+    def start_stream(self, nome, port):
 
-        self.routing_table[address] = (self.routing_table[address][1], self.routing_table[address][2], self.routing_table[address][0], "yes")
+        self.routing_tables[self.server][nome] = (self.routing_tables[self.server][nome][1], self.routing_tables[self.server][nome][2], self.routing_tables[self.server][nome][0], "yes")
 
-    def stop_stream(self, address, port):
+    def stop_stream(self, nome, port):
 
-        self.routing_table[address] = (self.routing_table[address][1], self.routing_table[address][2], self.routing_table[address][0], "no")
-
-    def disconnect(self, address, port):
-        pass
+        self.routing_tables[self.server][nome] = (self.routing_tables[self.server][nome][1], self.routing_tables[self.server][nome][2], self.routing_tables[self.server][nome][0], "no")
 
     def sendRtp(self):
         """Send RTP packets over UDP."""
         while True:
-
-            # self.clientInfo['event'].wait(0.05)
-            
-            # # Stop sending if request is PAUSE or TEARDOWN
-            # if self.clientInfo['event'].isSet():
-            #     break
 
             data = self.videostream.nextFrame()
 
@@ -46,10 +38,10 @@ class Server(Node):
 
                 frameNumber = self.videostream.frameNbr()
 
-                print([x for x in self.routing_table if self.routing_table[x][3] == "yes"])
-                for node in [x for x in self.routing_table if self.routing_table[x][3] == "yes"]:
+                # print([x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"])
+                for node in [x for x in self.routing_tables[self.server] if self.routing_tables[self.host][x][3] == "yes"]:
                     try:
-                        address = node
+                        address = self.ips[node]
                         port = 5000
                         packet =  self.makeRtp(data, frameNumber)
                         self.rtpSocket.sendto(packet, (address, 5000))
@@ -87,7 +79,13 @@ class Server(Node):
 
     def main(self):
         super().main()
-        #threading.Thread(target=self.sendRtp).start()
+
+        # while self.host not in self.routing_tables:
+
+        #     # mudar isto para await
+        #     time.sleep(15)
+
+        threading.Thread(target=self.sendRtp).start()
 
 if __name__ == '__main__':
 
@@ -95,3 +93,4 @@ if __name__ == '__main__':
     server.main()
 
 # python3 node.py 10.0.1.2 3001 10.0.0.10
+
