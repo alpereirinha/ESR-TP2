@@ -43,7 +43,6 @@ class Node:
                 self.addNeighbours(aux_msg[1], aux_msg[2])
 
             elif aux_msg[0] == "FLOOD": #mensagem de flood (começa no servidor)
-
                 self.handleFlood(aux_msg[1], address, int(aux_msg[2]), int(aux_msg[3]), aux_msg[4:], int(time.time() * 1000), port)
             
             elif aux_msg[0] == "STARTFLOOD": #começar construção do overlay (a partir do servidor)
@@ -51,12 +50,12 @@ class Node:
                 threading.Thread(target=self.period_flood, args=()).start()
 
             elif aux_msg[0] == "STARTSTREAMING": #recebe mensagem de um router para começar a stream
-                print("start streaming")
+                print(f"Pedido do {aux_msg[1]} para começar a realizar streaming")
                 self.start_stream(self.keys[address], aux_msg[1], PORT)
 
             elif aux_msg[0] == "STOPSTREAMING": #pedido para se desconectar
 
-                print("stop streaming")
+                print(f"Pedido do {aux_msg[1]} para parar de realizar streaming")
                 self.stop_stream(self.keys[address], aux_msg[1], PORT)
 
             # print(f"\n\nTABELA : {self.routing_tables[self.server]}")
@@ -186,37 +185,36 @@ class Node:
 
         else: #se já não mudou posso passar a auxiliar para principal
             #print("PAREI DE MUDAR")
-            if self.flood_nr > 1 and len(self.routing_tables[server]) == len(self.aux_routing_tables[server]):
+                if self.flood_nr > 1 and len(self.routing_tables[server]) == len(self.aux_routing_tables[server]):
 
-                for entry in self.aux_routing_tables[server]:
+                    with self.lock:
+                        for entry in self.aux_routing_tables[server]:
 
-                    self.aux_routing_tables[server][entry] = (self.aux_routing_tables[server][entry][0], self.aux_routing_tables[server][entry][1], self.aux_routing_tables[server][entry][2], self.routing_tables[server][entry][3])
+                            self.aux_routing_tables[server][entry] = (self.aux_routing_tables[server][entry][0], self.aux_routing_tables[server][entry][1], self.aux_routing_tables[server][entry][2], self.routing_tables[server][entry][3])
 
-                router_extr = [x for x in self.neighbours if x[0] == "p"]
+                        router_extr = [x for x in self.neighbours if x[0] == "p"]
 
-                # print(router_extr)
+                        # print(router_extr)
 
-                if not self.check and self.host[0] == "r" and len(router_extr):
-                    
-                    print("começou check server")
-                    threading.Thread(target=self.check_server, args=()).start()
-                    self.check = True
+                        if not self.check and self.host[0] == "r" and len(router_extr):
+                            
+                            print("-> Começou a thread com check_server")
+                            threading.Thread(target=self.check_server, args=()).start()
+                            self.check = True
 
-                # print(f"\n\nTABELA : {self.routing_tables}")
-                # print(f"\n\nTABELA AUX : {self.aux_routing_tables}")
-                self.routing_tables[server] = dict(self.aux_routing_tables[server])
+                        # print(f"\n\nTABELA : {self.routing_tables}")
+                        # print(f"\n\nTABELA AUX : {self.aux_routing_tables}")
+                        self.routing_tables[server] = dict(self.aux_routing_tables[server])
 
-            elif self.flood_nr == 1:
+                elif self.flood_nr == 1:
 
-                with self.lock:
+                    with self.lock:
 
-                    self.routing_tables[server] = dict(self.aux_routing_tables[server])
+                        self.routing_tables[server] = dict(self.aux_routing_tables[server])
 
             # print(f"\n\nNOVA TABELA : {self.routing_table}")
     
     def check_server(self):
-
-        print("entrei no checkserver")
 
         while True:
 
@@ -224,9 +222,8 @@ class Node:
                 
                 streaming = [x for x in self.routing_tables[self.server] if x[0] == "p" and self.routing_tables[self.server][x][3] == "yes"]
 
-                print(streaming)
-                print(self.routing_tables[self.server][self.server][2])
-                print(self.latency_tolerance)
+                print(f"melhor latência do servidor atual: {self.routing_tables[self.server][self.server][2]}ms")
+                print(f"threshold: {self.latency_tolerance}\n")
 
                 if len(streaming) and self.routing_tables[self.server][self.server][2] > self.latency_tolerance:
 
@@ -243,7 +240,7 @@ class Node:
                     self.socket.sendto(("STARTSTREAMING " + streaming[0]).encode('utf-8') ,(self.routing_tables[new_server][new_server][0], PORT))
                     self.server = new_server
 
-            print(f"eu {self.host} -> streamo pelo: {self.server}")
+            print(f"eu {self.host} -> uso o servidor: {self.server}\n")
             time.sleep(10)
 
     def startFlood(self):

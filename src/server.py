@@ -24,7 +24,6 @@ class Server(Node):
 
         # self.routing_tables[self.host][nome] = (self.routing_tables[self.host][nome][1], self.routing_tables[self.host][nome][2], self.routing_tables[self.host][nome][0], "yes")
         self.routing_tables[self.host][pc] = (self.routing_tables[self.host][pc][0], self.routing_tables[self.host][pc][1], self.routing_tables[self.host][pc][2], "yes")
-        threading.Thread(target=self.sendRtp).start()
 
     def stop_stream(self, nome, pc, port):
 
@@ -42,7 +41,7 @@ class Server(Node):
             self.aux_routing_tables[self.host] = dict(self.neighbours)
 
         vizinhos = [x for x in self.neighbours if x != self.host] #if self.aux_routing_tables[self.server][x][1] == 1]
-        print ("VIZINHOS: " + str(vizinhos))
+        # print ("VIZINHOS: " + str(vizinhos))
 
         str_to_send = ""
         list_to_send = []
@@ -112,7 +111,7 @@ class Server(Node):
 
         #     # mudar isto para await
         #     time.sleep(15)
-        # threading.Thread(target=self.sendRtp).start()
+        threading.Thread(target=self.sendRtp).start()
 
 if __name__ == '__main__':
 
