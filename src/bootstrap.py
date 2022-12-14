@@ -4,17 +4,18 @@ from node import Node
 
 class Bootstrap:
 
-    def __init__(self, host):
+    def __init__(self, host, filename):
         
         self.host = host
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.filename = filename
         self.servers = {}
         self.nodes = {} #para guardar os nodos e os vizinhos existentes
         #sintaxe : {'s1': ['r1:10.0.1.1','r2:10.0.1.2'])}
 
     def parseBootstrapper(self):
         
-        file = json.load(open("bootstrap.json", 'r'))
+        file = json.load(open(self.filename, 'r'))
 
         print(file)
 
@@ -35,13 +36,6 @@ class Bootstrap:
 
         neighbours = ','.join(self.nodes[name])
         self.socket.sendto(("ADDME " + ','.join(list(self.servers.keys())) + " " + neighbours).encode('utf-8'), (addr, 3000))
-        self.nodes.pop(name)
-        print("NODES: " + str(self.nodes))
-        if len(self.nodes) == 0:
-
-            for server in self.servers:
-
-                self.socket.sendto(("STARTFLOOD").encode('utf-8'), (self.servers[server], 3000)) 
 
     def servico_bt(self):
 
@@ -56,8 +50,20 @@ class Bootstrap:
             if aux_msg[0] == "NEIGHBOURS":
                 
                 self.sendNeighbours(address, aux_msg[1])
+
+            elif aux_msg[0] == "ACK": #confirmação do nodo na rede
+
+                self.remove_node(aux_msg[1])
                 
-            #defineRoutes(data,address)    
+    def remove_node(self, node):
+
+        self.nodes.pop(node)
+
+        if len(self.nodes) == 0:
+
+            for server in self.servers:
+
+                self.socket.sendto(("STARTFLOOD").encode('utf-8'), (self.servers[server], 3000)) 
 
     def main(self):
 
@@ -66,6 +72,6 @@ class Bootstrap:
 
 if __name__ == '__main__':
 
-    bootstrap = Bootstrap(sys.argv[1])
+    bootstrap = Bootstrap(sys.argv[1], sys.argv[2])
     bootstrap.main()
 

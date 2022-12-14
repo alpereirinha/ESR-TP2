@@ -70,6 +70,7 @@ class Server(Node):
                         address = node
                         port = 5000
                         packet =  self.makeRtp(data, frameNumber)
+                        print(f"frame number: {frameNumber}")
                         self.rtpSocket.sendto(packet, (address, 5000))
                     except:
                         print("Connection Error")
@@ -80,6 +81,7 @@ class Server(Node):
             else:
                 self.videostream.file.seek(0)
                 self.videostream.frameNum = 0
+
             time.sleep(0.04)
         # Close the RTP socket
         self.rtpSocket.close()
@@ -118,3 +120,4 @@ if __name__ == '__main__':
     server.main()
 
 # python3 node.py 10.0.1.2 3001 10.0.0.10
+

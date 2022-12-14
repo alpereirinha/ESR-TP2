@@ -15,8 +15,14 @@ class Client(Node):
         self.lock = threading.Lock()
         self.root = Tk()
         print(self.host)
-        self.clienteGUI = ClienteGUI(self.root, "", PORT)
+        self.clienteGUI = ClienteGUI(self.root, "", PORT, int(self.host[-1]))
     
+    def start_stream(self, nome, pc, port):
+        pass
+
+    def stop_stream(self, nome, pc, port):
+        pass
+
     def start_stream(self):
 
         self.socket.sendto(("STARTSTREAMING " + self.host).encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
@@ -49,11 +55,12 @@ class Client(Node):
     def main(self):
 
         super().main()
-
-        self.clienteGUI.master.title("Cliente")
+        self.clienteGUI.master.title(self.host)
         val = input()
         if val == "start":
+
             self.start_stream()
+
         self.root.mainloop()
 
         #threading.Thread(target=self.process, args=([addr])).start()
@@ -65,3 +72,4 @@ if __name__ == '__main__':
 
     client = Client(sys.argv[1], sys.argv[2])
     client.main()
+

@@ -21,6 +21,7 @@ class Node:
         self.keys = {}
         self.flood_nr = 0
         self.neighbours = {}
+        self.check = False
         #possível sintaxe do dicionário i guess:
         #dict([(('10.1.0.10' : [('next_hop','10.2.0.1'), ('num_hops','3'), ('active','yes'))])
         #self.previous_node = "" #para guardarmos o nodo de onde veio o flood e não enviarmos para ele (?)
@@ -47,17 +48,15 @@ class Node:
             
             elif aux_msg[0] == "STARTFLOOD": #começar construção do overlay (a partir do servidor)
 
-                # self.startFlood()
                 threading.Thread(target=self.period_flood, args=()).start()
 
-                #FALTA IMPLEMENTAR OS FLOODS PERIODICOS DIREITOS
-
             elif aux_msg[0] == "STARTSTREAMING": #recebe mensagem de um router para começar a stream
-                
+                print("start streaming")
                 self.start_stream(self.keys[address], aux_msg[1], PORT)
 
             elif aux_msg[0] == "STOPSTREAMING": #pedido para se desconectar
 
+                print("stop streaming")
                 self.stop_stream(self.keys[address], aux_msg[1], PORT)
 
             # print(f"\n\nTABELA : {self.routing_tables[self.server]}")
@@ -95,9 +94,13 @@ class Node:
                 self.keys[info[1]] = info[0]
                 #self.neighbours.add(info[0])
                 self.lock.release()
-            self.aux_routing_tables[server][self.host] = (self.host, 0, 0, 'no')
             self.neighbours = dict(self.aux_routing_tables[server])
+            self.aux_routing_tables[server][self.host] = (self.host, 0, 0, 'no')
 
+        self.socket.sendto(("ACK " + self.host).encode('utf-8'), (self.bootstrapper, 4000))
+
+        print(self.keys)
+        print(self.ips)
         # threading.Thread(target=self.check_server, args=()).start()
 
     def period_flood(self):
@@ -171,6 +174,7 @@ class Node:
 
             str_to_send = ""
             list_to_send = []
+
             for neighbour in self.aux_routing_tables[server]:
                 neighbour_str = neighbour + ":" + ','.join(map(str, self.aux_routing_tables[server][neighbour]))
                 list_to_send.append(neighbour_str)
@@ -184,83 +188,63 @@ class Node:
             #print("PAREI DE MUDAR")
             if self.flood_nr > 1 and len(self.routing_tables[server]) == len(self.aux_routing_tables[server]):
 
-
                 for entry in self.aux_routing_tables[server]:
 
                     self.aux_routing_tables[server][entry] = (self.aux_routing_tables[server][entry][0], self.aux_routing_tables[server][entry][1], self.aux_routing_tables[server][entry][2], self.routing_tables[server][entry][3])
 
-                print(f"\n\nTABELA : {self.routing_tables}")
-                print(f"\n\nTABELA AUX : {self.aux_routing_tables}")
+                router_extr = [x for x in self.neighbours if x[0] == "p"]
+
+                # print(router_extr)
+
+                if not self.check and self.host[0] == "r" and len(router_extr):
+                    
+                    print("começou check server")
+                    threading.Thread(target=self.check_server, args=()).start()
+                    self.check = True
+
+                # print(f"\n\nTABELA : {self.routing_tables}")
+                # print(f"\n\nTABELA AUX : {self.aux_routing_tables}")
                 self.routing_tables[server] = dict(self.aux_routing_tables[server])
 
             elif self.flood_nr == 1:
 
-                self.routing_tables[server] = dict(self.aux_routing_tables[server])
+                with self.lock:
+
+                    self.routing_tables[server] = dict(self.aux_routing_tables[server])
 
             # print(f"\n\nNOVA TABELA : {self.routing_table}")
     
     def check_server(self):
 
-        # while True:
+        print("entrei no checkserver")
 
-            # if self.routing_tables[self.server][self.server][1] > self.latency_tolerance:
+        while True:
 
-            #     self.socket.sendto(("STOPSTREAMING").encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
-            #     self.server = "s" + str((int(self.server[1]) % len(self.routing_tables)) + 1)
-            #     print(f"mudei para o server: {self.server}")
-            #     self.socket.sendto(("STARTSTREAMING").encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
+            with self.lock:
+                
+                streaming = [x for x in self.routing_tables[self.server] if x[0] == "p" and self.routing_tables[self.server][x][3] == "yes"]
 
-            # time.sleep(3)
+                print(streaming)
+                print(self.routing_tables[self.server][self.server][2])
+                print(self.latency_tolerance)
 
-            # apenas para teste
-        time.sleep(15)
+                if len(streaming) and self.routing_tables[self.server][self.server][2] > self.latency_tolerance:
 
-        if self.host == "r3":
+                    new_server = "s" + str((int(self.server[1]) % len(self.routing_tables)) + 1)
 
-            new_server = "s" + str((int(self.server[1]) % len(self.routing_tables)) + 1)
-            for entry in [x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"]:
+                    for entry in [x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"]:
 
-                self.routing_tables[new_server][entry] = (self.routing_tables[new_server][entry][0], self.routing_tables[new_server][entry][1], self.routing_tables[new_server][entry][2], "yes")
-                self.routing_tables[self.server][entry] = (self.routing_tables[self.server][entry][0], self.routing_tables[self.server][entry][1], self.routing_tables[self.server][entry][2], "no")
-                print(f"\n\n{self.routing_tables}")
+                        self.routing_tables[new_server][entry] = (self.routing_tables[new_server][entry][0], self.routing_tables[new_server][entry][1], self.routing_tables[new_server][entry][2], "yes")
 
-            self.socket.sendto(("STOPSTREAMING").encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
-            self.socket.sendto(("STARTSTREAMING").encode('utf-8') ,(self.routing_tables[new_server][new_server][0], PORT))
-            self.server = new_server
-            print(f"eu {self.host} -> mudei para o server: {self.server}")
+                        self.routing_tables[self.server][entry] = (self.routing_tables[self.server][entry][0], self.routing_tables[self.server][entry][1], self.routing_tables[self.server][entry][2], "no")
 
-        time.sleep(15)
+                    print(self.routing_tables[self.server][self.server][0])
+                    self.socket.sendto(("STOPSTREAMING " + streaming[0]).encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
+                    self.socket.sendto(("STARTSTREAMING " + streaming[0]).encode('utf-8') ,(self.routing_tables[new_server][new_server][0], PORT))
+                    self.server = new_server
 
-        if self.host == "r2":
-
-            new_server = "s" + str((int(self.server[1]) % len(self.routing_tables)) + 1)
-            for entry in [x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"]:
-
-                self.routing_tables[new_server][entry] = (self.routing_tables[new_server][entry][0], self.routing_tables[new_server][entry][1], self.routing_tables[new_server][entry][2], "yes")
-                self.routing_tables[self.server][entry] = (self.routing_tables[self.server][entry][0], self.routing_tables[self.server][entry][1], self.routing_tables[self.server][entry][2], "no")
-                print(f"\n\n{self.routing_tables}")
-
-            self.socket.sendto(("STOPSTREAMING").encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
-            self.socket.sendto(("STARTSTREAMING").encode('utf-8') ,(self.routing_tables[new_server][new_server][0], PORT))
-            self.server = new_server
-            print(f"eu {self.host} -> mudei para o server: {self.server}")
-        
-        time.sleep(15)
-
-        if self.host == "r3":
-
-            new_server = "s" + str((int(self.server[1]) % len(self.routing_tables)) + 1)
-            for entry in [x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"]:
-
-                self.routing_tables[new_server][entry] = (self.routing_tables[new_server][entry][0], self.routing_tables[new_server][entry][1], self.routing_tables[new_server][entry][2], "yes")
-                self.routing_tables[self.server][entry] = (self.routing_tables[self.server][entry][0], self.routing_tables[self.server][entry][1], self.routing_tables[self.server][entry][2], "no")
-                print(f"\n\n{self.routing_tables}")
-
-            self.socket.sendto(("STOPSTREAMING").encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
-            self.socket.sendto(("STARTSTREAMING").encode('utf-8') ,(self.routing_tables[new_server][new_server][0], PORT))
-            self.server = new_server
-            print(f"eu {self.host} -> mudei para o server: {self.server}")
-
+            print(f"eu {self.host} -> streamo pelo: {self.server}")
+            time.sleep(10)
 
     def startFlood(self):
         pass
@@ -270,9 +254,7 @@ class Node:
         # self.routing_tables[self.server][address] = (self.routing_tables[self.server][address][0], self.routing_tables[self.server][address][1], self.routing_tables[self.server][address][2], "yes")
         self.routing_tables[self.server][pc] = (self.routing_tables[self.server][pc][0], self.routing_tables[self.server][pc][1], self.routing_tables[self.server][pc][2], "yes")
 
-        if 1 == len([x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"]):
-
-            self.socket.sendto(("STARTSTREAMING " + pc).encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
+        self.socket.sendto(("STARTSTREAMING " + pc).encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
 
 
 
@@ -281,9 +263,7 @@ class Node:
         # self.routing_tables[self.server][address] = (self.routing_tables[self.server][address][0], self.routing_tables[self.server][address][1], self.routing_tables[self.server][address][2], "no")
         self.routing_tables[self.server][pc] = (self.routing_tables[self.server][pc][0], self.routing_tables[self.server][pc][1], self.routing_tables[self.server][pc][2], "no")
         
-        if not len([x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"]):
-
-            self.socket.sendto(("STOPSTREAMING " + pc).encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
+        self.socket.sendto(("STOPSTREAMING " + pc).encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
 
     def servico(self):
 
@@ -296,10 +276,11 @@ class Node:
 
         threading.Thread(target=self.listen, args=()).start()
         threading.Thread(target=self.listenRTP, args=()).start()
+        # threading.Thread(target=self.check_server, args=()).start()
         # threading.Thread(target=self.servico, args=()).start()
         self.socket.sendto(("NEIGHBOURS " + str(self.host)).encode('utf-8'), (self.bootstrapper, 4000))
         
-        #threading.Thread(target=self.servico, args=()).start()
+        # threading.Thread(target=self.servico, args=()).start()
 
 if __name__ == '__main__':
 

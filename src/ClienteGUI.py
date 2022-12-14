@@ -11,14 +11,14 @@ CACHE_FILE_EXT = ".jpg"
 class ClienteGUI:
 	
 	# Initiation..
-	def __init__(self, master, addr, port):
+	def __init__(self, master, addr, port, idPC):
 		self.master = master
 		self.master.protocol("WM_DELETE_WINDOW", self.handler)
 		self.createWidgets()
 		self.addr = addr
 		self.port = int(port)
 		self.rtspSeq = 0
-		self.sessionId = 0
+		self.sessionId = idPC
 		self.requestSent = -1
 		self.teardownAcked = 0
 		# self.openRtpPort()
