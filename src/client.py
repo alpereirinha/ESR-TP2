@@ -19,11 +19,11 @@ class Client(Node):
     
     def start_stream(self):
 
-        self.socket.sendto(("STARTSTREAMING").encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
+        self.socket.sendto(("STARTSTREAMING " + self.host).encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
 
     def stop_stream(self):
 
-        self.socket.sendto(("STOPSTREAMING").encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
+        self.socket.sendto(("STOPSTREAMING " + self.host).encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
 
     def startFlood():
         pass
@@ -34,7 +34,7 @@ class Client(Node):
         rtpPacket.decode(data)
         
         currFrameNbr = rtpPacket.seqNum()
-        print("Current Seq Num: " + str(currFrameNbr))
+        # print("Current Seq Num: " + str(currFrameNbr))
                             
         if currFrameNbr > self.clienteGUI.frameNbr: # Discard the late packet
             self.clienteGUI.frameNbr = currFrameNbr
@@ -65,4 +65,3 @@ if __name__ == '__main__':
 
     client = Client(sys.argv[1], sys.argv[2])
     client.main()
-

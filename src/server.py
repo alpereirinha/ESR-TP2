@@ -20,14 +20,16 @@ class Server(Node):
         self.videostream = VideoStream(FILENAME)
         self.rtpSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    def start_stream(self, nome, port):
+    def start_stream(self, nome, pc, port):
 
-        self.routing_tables[self.host][nome] = (self.routing_tables[self.host][nome][1], self.routing_tables[self.host][nome][2], self.routing_tables[self.host][nome][0], "yes")
+        # self.routing_tables[self.host][nome] = (self.routing_tables[self.host][nome][1], self.routing_tables[self.host][nome][2], self.routing_tables[self.host][nome][0], "yes")
+        self.routing_tables[self.host][pc] = (self.routing_tables[self.host][pc][0], self.routing_tables[self.host][pc][1], self.routing_tables[self.host][pc][2], "yes")
         threading.Thread(target=self.sendRtp).start()
 
-    def stop_stream(self, nome, port):
+    def stop_stream(self, nome, pc, port):
 
-        self.routing_tables[self.host][nome] = (self.routing_tables[self.host][nome][1], self.routing_tables[self.host][nome][2], self.routing_tables[self.host][nome][0], "no")
+        # self.routing_tables[self.host][nome] = (self.routing_tables[self.host][nome][1], self.routing_tables[self.host][nome][2], self.routing_tables[self.host][nome][0], "no")
+        self.routing_tables[self.host][pc] = (self.routing_tables[self.host][pc][0], self.routing_tables[self.host][pc][1], self.routing_tables[self.host][pc][2], "no")
 
     def check_server(self):
         pass
@@ -63,10 +65,9 @@ class Server(Node):
 
                 frameNumber = self.videostream.frameNbr()
 
-                print([x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"])
-                for node in [x for x in self.routing_tables[self.host] if self.routing_tables[self.host][x][3] == "yes"]:
+                for node in set([self.routing_tables[self.host][x][0] for x in self.routing_tables[self.host] if self.routing_tables[self.host][x][3] == "yes"]):
                     try:
-                        address = self.ips[node]
+                        address = node
                         port = 5000
                         packet =  self.makeRtp(data, frameNumber)
                         self.rtpSocket.sendto(packet, (address, 5000))
@@ -98,7 +99,7 @@ class Server(Node):
         rtpPacket = RtpPacket()
         
         rtpPacket.encode(version, padding, extension, cc, seqnum, marker, pt, ssrc, payload)
-        print("Encoding RTP Packet: " + str(seqnum))
+        # print("Encoding RTP Packet: " + str(seqnum))
         
         return rtpPacket.getPacket()
 
@@ -117,4 +118,3 @@ if __name__ == '__main__':
     server.main()
 
 # python3 node.py 10.0.1.2 3001 10.0.0.10
-

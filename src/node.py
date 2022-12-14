@@ -35,7 +35,7 @@ class Node:
 
             aux_msg = data.decode('utf-8').split(' ')
 
-            print(aux_msg)
+            # print(aux_msg)
 
             if aux_msg[0] == "ADDME": #recebe a lista de vizinhos a adicionar
 
@@ -47,18 +47,18 @@ class Node:
             
             elif aux_msg[0] == "STARTFLOOD": #começar construção do overlay (a partir do servidor)
 
-                self.startFlood()
-                # threading.Thread(target=self.period_flood, args=()).start()
+                # self.startFlood()
+                threading.Thread(target=self.period_flood, args=()).start()
 
                 #FALTA IMPLEMENTAR OS FLOODS PERIODICOS DIREITOS
 
             elif aux_msg[0] == "STARTSTREAMING": #recebe mensagem de um router para começar a stream
                 
-                self.start_stream(self.keys[address], PORT)
+                self.start_stream(self.keys[address], aux_msg[1], PORT)
 
             elif aux_msg[0] == "STOPSTREAMING": #pedido para se desconectar
 
-                self.stop_stream(self.keys[address], PORT)
+                self.stop_stream(self.keys[address], aux_msg[1], PORT)
 
             # print(f"\n\nTABELA : {self.routing_tables[self.server]}")
             # print(f"\n\nTABELA : {self.aux_routing_tables[self.server]}")
@@ -74,10 +74,10 @@ class Node:
 
     def handle_stream(self, data):
 
-        for n in [x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"]:
+        for n in set([self.routing_tables[self.server][x][0] for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"]):
             
-            print(f"tou streamar para {n}")
-            self.socket.sendto(data, (self.ips[n], 5000))
+            # print(f"tou streamar para {n}")
+            self.socket.sendto(data, (n, 5000))
 
     def addNeighbours(self, servers, msg):
 
@@ -98,14 +98,14 @@ class Node:
             self.aux_routing_tables[server][self.host] = (self.host, 0, 0, 'no')
             self.neighbours = dict(self.aux_routing_tables[server])
 
-        threading.Thread(target=self.check_server, args=()).start()
+        # threading.Thread(target=self.check_server, args=()).start()
 
     def period_flood(self):
 
         while True:
 
             self.startFlood()
-            time.sleep(30)
+            time.sleep(20)
 
     def handleFlood(self, server, address, instant, flood, table, my_instant, port):
 
@@ -182,7 +182,21 @@ class Node:
 
         else: #se já não mudou posso passar a auxiliar para principal
             #print("PAREI DE MUDAR")
-            self.routing_tables[server] = dict(self.aux_routing_tables[server])
+            if self.flood_nr > 1 and len(self.routing_tables[server]) == len(self.aux_routing_tables[server]):
+
+
+                for entry in self.aux_routing_tables[server]:
+
+                    self.aux_routing_tables[server][entry] = (self.aux_routing_tables[server][entry][0], self.aux_routing_tables[server][entry][1], self.aux_routing_tables[server][entry][2], self.routing_tables[server][entry][3])
+
+                print(f"\n\nTABELA : {self.routing_tables}")
+                print(f"\n\nTABELA AUX : {self.aux_routing_tables}")
+                self.routing_tables[server] = dict(self.aux_routing_tables[server])
+
+            elif self.flood_nr == 1:
+
+                self.routing_tables[server] = dict(self.aux_routing_tables[server])
+
             # print(f"\n\nNOVA TABELA : {self.routing_table}")
     
     def check_server(self):
@@ -251,30 +265,38 @@ class Node:
     def startFlood(self):
         pass
 
-    def start_stream(self, address, port):
+    def start_stream(self, address, pc, port):
 
-        self.routing_tables[self.server][address] = (self.routing_tables[self.server][address][0], self.routing_tables[self.server][address][1], self.routing_tables[self.server][address][2], "yes")
+        # self.routing_tables[self.server][address] = (self.routing_tables[self.server][address][0], self.routing_tables[self.server][address][1], self.routing_tables[self.server][address][2], "yes")
+        self.routing_tables[self.server][pc] = (self.routing_tables[self.server][pc][0], self.routing_tables[self.server][pc][1], self.routing_tables[self.server][pc][2], "yes")
 
         if 1 == len([x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"]):
 
-            self.socket.sendto(("STARTSTREAMING").encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
+            self.socket.sendto(("STARTSTREAMING " + pc).encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
 
 
 
-    def stop_stream(self, address, port):
+    def stop_stream(self, address, pc, port):
 
-        self.routing_tables[self.server][address] = (self.routing_tables[self.server][address][0], self.routing_tables[self.server][address][1], self.routing_tables[self.server][address][2], "no")
+        # self.routing_tables[self.server][address] = (self.routing_tables[self.server][address][0], self.routing_tables[self.server][address][1], self.routing_tables[self.server][address][2], "no")
+        self.routing_tables[self.server][pc] = (self.routing_tables[self.server][pc][0], self.routing_tables[self.server][pc][1], self.routing_tables[self.server][pc][2], "no")
         
         if not len([x for x in self.routing_tables[self.server] if self.routing_tables[self.server][x][3] == "yes"]):
 
-            self.socket.sendto(("STOPSTREAMING").encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
+            self.socket.sendto(("STOPSTREAMING " + pc).encode('utf-8') ,(self.routing_tables[self.server][self.server][0], PORT))
 
+    def servico(self):
 
+        while True:
+
+            print(f"\n\nTABELA : {self.routing_tables}")
+            time.sleep(10)
 
     def main(self):
 
         threading.Thread(target=self.listen, args=()).start()
         threading.Thread(target=self.listenRTP, args=()).start()
+        # threading.Thread(target=self.servico, args=()).start()
         self.socket.sendto(("NEIGHBOURS " + str(self.host)).encode('utf-8'), (self.bootstrapper, 4000))
         
         #threading.Thread(target=self.servico, args=()).start()
